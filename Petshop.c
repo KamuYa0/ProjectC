@@ -1,14 +1,40 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
+#include <time.h>
+
 #define MAX_PRODUCTS 10
+
+
+struct ExpiryDate {
+    int year;
+    int month;
+};
 
 struct Product {
     char name[50];
     int price;
     int quantity;
-    char expiry_date[20];
+    struct ExpiryDate expiry_date;
 };
+
+int checkExpiryDate(struct ExpiryDate expiry_date) {
+    time_t now;
+    struct tm *info;
+    time(&now);
+    info = localtime(&now);
+
+    int current_year = info->tm_year + 1900;
+    int current_month = info->tm_mon + 1;
+
+    if (expiry_date.year < current_year || (expiry_date.year == current_year && expiry_date.month < current_month)) {
+        return 1; // Product has expired
+    } else {
+        return 0; // Product has not expired
+    }
+}
+
 void searchProduct(struct Product products[], int num_products) {
     char search_name[50];
     int found = 0;
@@ -34,7 +60,7 @@ void searchProduct(struct Product products[], int num_products) {
             }
 
             if (strstr(temp_name, search_name) != NULL) {
-                printf("Product: %s - Price: %d - Quantity: %d - Expiry Date: %s\n", products[i].name, products[i].price, products[i].quantity, products[i].expiry_date);
+                printf("Product: %s - Price: %d - Quantity: %d - Expiry Date: %d/%d\n", products[i].name, products[i].price, products[i].quantity, products[i].expiry_date.month, products[i].expiry_date.year);
                 found = 1;
             }
         }
@@ -46,27 +72,28 @@ void searchProduct(struct Product products[], int num_products) {
         printf("No products available for search.\n");
     }
 }
+
 void addProduct(struct Product products[], int *num_products) {
     if (*num_products < MAX_PRODUCTS) {
         printf("Enter product name: ");
         getchar(); // Clear input buffer
         fgets(products[*num_products].name, sizeof(products[*num_products].name), stdin);
         products[*num_products].name[strlen(products[*num_products].name) - 1] = '\0'; 
-        for (int i = 0; products[*num_products].name[i]; i++) {
-            products[*num_products].name[i] = toupper(products[*num_products].name[i]);
-        }
         printf("Enter product price: ");
         scanf("%d", &products[*num_products].price);
         printf("Enter product quantity: ");
         scanf("%d", &products[*num_products].quantity);
-        printf("Enter product expiry date: ");
-        scanf("%s", products[*num_products].expiry_date);
+        printf("Enter product expiry year: ");
+        scanf("%d", &products[*num_products].expiry_date.year);
+        printf("Enter product expiry month: ");
+        scanf("%d", &products[*num_products].expiry_date.month);
         (*num_products)++;
         printf("Product added successfully.\n");
     } else {
         printf("Maximum number of products reached.\n");
     }
 }
+
 void deleteProduct(struct Product products[], int *num_products) {
     if (*num_products > 0) {
         int delete_index;
@@ -86,18 +113,20 @@ void deleteProduct(struct Product products[], int *num_products) {
         printf("No products to delete.\n");
     }
 }
+
 void showAllProducts(struct Product products[], int num_products) {
     if (num_products > 0) {
         printf("All Products:\n");
         printf("---------------------------------------------------------------\n");
         for (int i = 0; i < num_products; i++) {
-            printf("Product %d: %s - Price: %d - Quantity: %d - Expiry Date: %s\n", i+1, products[i].name, products[i].price, products[i].quantity, products[i].expiry_date);
+            printf("Product %d: %s - Price: %d - Quantity: %d - Expiry Date: %d/%d\n", i+1, products[i].name, products[i].price, products[i].quantity, products[i].expiry_date.month, products[i].expiry_date.year);
         }
         printf("---------------------------------------------------------------\n");
     } else {
         printf("No products available.\n");
     }
 }
+
 void editProduct(struct Product products[], int num_products) {
     if (num_products > 0) {
         int edit_index;
@@ -109,15 +138,14 @@ void editProduct(struct Product products[], int num_products) {
             getchar(); // Clear input buffer
             fgets(products[edit_index].name, sizeof(products[edit_index].name), stdin);
             products[edit_index].name[strlen(products[edit_index].name) - 1] = '\0'; // Remove new line character from fgets
-            for (int i = 0; products[edit_index].name[i]; i++) {
-                products[edit_index].name[i] = toupper(products[edit_index].name[i]);
-            }
             printf("Enter new product price: ");
             scanf("%d", &products[edit_index].price);
             printf("Enter new product quantity: ");
             scanf("%d", &products[edit_index].quantity);
-            printf("Enter new product expiry date: ");
-            scanf("%s", products[edit_index].expiry_date);
+            printf("Enter new product expiry year: ");
+            scanf("%d", &products[edit_index].expiry_date.year);
+            printf("Enter new product expiry month: ");
+            scanf("%d", &products[edit_index].expiry_date.month);
 
             printf("Product information updated successfully.\n");
         } else {
@@ -127,6 +155,7 @@ void editProduct(struct Product products[], int num_products) {
         printf("No products to edit.\n");
     }
 }
+
 void sortProductsByName(struct Product products[], int num_products) {
     struct Product temp;
     int i, j;
@@ -143,9 +172,76 @@ void sortProductsByName(struct Product products[], int num_products) {
 
     printf("Products sorted by name.\n");
 }
+
+void saveProductsToFile(struct Product products[], int num_products) {
+    FILE *fp;
+    fp = fopen("products.txt", "w");
+
+    if (fp == NULL) {
+        printf("Error opening or creating file.\n");
+        return;
+    }
+
+    for (int i = 0; i < num_products; i++) {
+        fprintf(fp, "%s,%d,%d,%d,%d\n", products[i].name, products[i].price, products[i].quantity, products[i].expiry_date.year, products[i].expiry_date.month);
+    }
+
+    fclose(fp);
+    printf("Products saved to file successfully.\n");
+}
+
+void loadProductsFromFile(struct Product products[], int *num_products) {
+    FILE *fp;
+    fp = fopen("products.txt", "r");
+
+    if (fp == NULL) {
+        printf("Error opening file.\n");
+        return;
+    }
+
+    while (*num_products < MAX_PRODUCTS && fscanf(fp, "%49[^,],%d,%d,%d,%d\n", products[*num_products].name, &products[*num_products].price, &products[*num_products].quantity, &products[*num_products].expiry_date.year, &products[*num_products].expiry_date.month) == 5) {
+        (*num_products)++;
+    }
+
+    fclose(fp);
+    printf("Products loaded from file successfully.\n");
+}
+
+void checkAndNotifyExpiry(struct Product products[], int num_products) {
+    FILE *fp;
+    fp = fopen("expiry_notification.txt", "w");
+
+    if (fp == NULL) {
+        printf("Error opening or creating file.\n");
+        return;
+    }
+
+    time_t now;
+    struct tm *info;
+    time(&now);
+    info = localtime(&now);
+
+    int current_year = info->tm_year + 1900;
+    int current_month = info->tm_mon + 1;
+
+    fprintf(fp, "Expiry Notification:\n\n");
+    for (int i = 0; i < num_products; i++) {
+        if (checkExpiryDate(products[i].expiry_date)) {
+            fprintf(fp, "Product %s has expired.\n", products[i].name);
+        } else {
+            fprintf(fp, "Product %s has not expired.\n", products[i].name);
+        }
+    }
+
+    fclose(fp);
+    printf("Expiry notification saved to file successfully.\n");
+}
+
 int main() {
     struct Product products[MAX_PRODUCTS];
     int num_products = 0;
+    loadProductsFromFile(products, &num_products);
+    checkAndNotifyExpiry(products, num_products);
 
     int action;
     do {
@@ -162,7 +258,7 @@ int main() {
         printf("╚═════════════════════════════╝\n");
 
         scanf("%d", &action);
-       switch(action) {
+        switch(action) {
             case 1: // Add a product
                 addProduct(products, &num_products);
                 break;
@@ -188,6 +284,7 @@ int main() {
                 break;
 
             case 9: // Quit
+                saveProductsToFile(products, num_products);
                 printf("Exiting program.\n");
                 break;
 
